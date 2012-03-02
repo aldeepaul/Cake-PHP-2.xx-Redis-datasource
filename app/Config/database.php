@@ -28,7 +28,7 @@ class DATABASE_CONFIG {
 		'database_number' => 0 /* Redis database number */
 	);
 
-	public $redisDB_1 = array(
+	public $redisDB_2 = array(
 		'datasource' => 'RedisSource',
 		'host' => 'localhost',
 		'port'=>'6379',
