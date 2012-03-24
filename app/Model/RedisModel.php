@@ -264,7 +264,6 @@ class RedisModel extends NoSQLModel
     * Atomically sets key to value and returns the old value stored at key.
     * Returns an error when key exists but does not hold a string value.
     *
-    * @param $model CakePHP Model instance.
     * @param $key Database key
     * @param $value new value to set to key.
     *
@@ -315,6 +314,26 @@ class RedisModel extends NoSQLModel
     public function keys($keysPattern)
     {
         return $this->getDataSource()->keys($this, $keysPattern);
-    }    
+    }
+
+
+   /**
+    *
+    * Set key to hold the string value. If key already holds a value,
+    * it is overwritten, regardless of its type.
+    * 
+    * @param $key Database key
+    * @param $value new value to set to key.
+    *
+    * @return Status code reply: always OK since SET can't fail.
+    *
+    * @see http://redis.io/commands/set
+    *
+    **/
+    public function setKeyValue($key, $value)
+    {
+        return $this->getDataSource()->set($this, $key,$value);
+    }
+    
 }
 ?>

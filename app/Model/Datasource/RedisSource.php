@@ -17,7 +17,7 @@ if(!defined('CRLF'))
  *
  * @author Iban Martinez (iban@nnset.com)
  * @license MIT License (http://www.opensource.org/licenses/mit-license.php)
- * @note This datasaource has been tested with Redis 2.2.11
+ * @note This DataSource has been tested with Redis 2.2.11
  * 
  * Credits : 
  *  Some methods where taken from https://github.com/jdp/redisent
@@ -521,7 +521,29 @@ class RedisSource extends DataSource
         return $this->executeRedisCommand( $this->buildRedisCommand("lastsave",array()));
     }
     
-
+    
+   /**
+    * 
+    * Set key to hold the string value. If key already holds a value, 
+    * it is overwritten, regardless of its type.
+    * 
+    * @return Status code reply: always OK since SET can't fail.
+    * 
+    * @see http://redis.io/commands/set
+    * 
+    **/
+    public function set($model,$key, $value)
+    {
+        if (empty($key))
+            throw new RedisException("",RedisException::$MISSING_KEY);
+        
+        if (empty($value))
+            throw new RedisException("",RedisException::$MISSING_VALUE);
+        
+        return $this->executeRedisCommand( $this->buildRedisCommand("set",array($key, $value)));
+    }
+        
+    
    /**
     * Will parse parameters and generate a Redis command, ready to be sent 
     * through our socket. 
