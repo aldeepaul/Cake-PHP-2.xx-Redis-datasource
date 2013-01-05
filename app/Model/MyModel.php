@@ -1,28 +1,13 @@
 <?php
+
 App::import('Model', 'RedisModel');
+
 
 class MyModel extends RedisModel
 {
     public $name        = 'MyModel';
-    public $useDbConfig = 'redisDB_1'; // Defined un app/Config/database.php
-
-   
-    /**
-     * Store on DB a new instance of a MyModel.
-     * 
-     * @param $key Redis key
-     * @param $value Key's value.
-     * 
-     * @return Created instance will be returned in CakePHP's array way; will return false 
-     *         otherwise is something went wrong. 
-     *         Note that what we return is the value of cakephp's Model->save method.
-     * 
-     **/
-    public function createMyModel( $key, $value )
-    {        
-        return $this->create($this,array('key','value'),array($key,$value));
-    }
-
+    public $useDbConfig = 'redisDB_1'; // Defined at app/Config/database.php
+  
 
     /**
      * Get the value of a given key.
@@ -31,11 +16,27 @@ class MyModel extends RedisModel
      * 
      * @return Key's value.
      * 
-     **/    
-    public function getByKey($key)
+     **/  
+    public function get($key)
     {
-        return $this->read($this,array('conditions' =>array('key'=>$key) ));
-    }    
+        return $this->execute("get", array($key));
+    }
+    
+
+    /**
+     * Store on DB a new instance of a MyModel.
+     * 
+     * @param $key Redis key
+     * @param $value Key's value.
+     * 
+     * @return http://redis.io/commands/set
+     * 
+     **/ 
+    public function set( $key, $value )
+    {   
+        return $this->execute("set", array("key"=>$key,"value"=>$value));
+    }
+        
 }
 
 ?>

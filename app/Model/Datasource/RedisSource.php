@@ -32,9 +32,9 @@ class RedisSource extends DataSource
 
     protected $_schema = array(
                 'key' => array(
-                	'type' => 'text'
+                    'type' => 'text'
             ),
-            	'value' => array(
+                'value' => array(
                     'type' => 'text'
             )
         );
@@ -54,496 +54,26 @@ class RedisSource extends DataSource
             throw new RedisException("",RedisException::$CONNECTION_ERROR);
 
         if(isset($config['database_number']))
-            $this->executeRedisCommand( $this->buildRedisCommand("select",array(intval($config['database_number']))));
+            $this->executeCommand( $this->buildCommand("select",array(intval($config['database_number']))));
 
         $this->connected = true;
     }
 
 
-   /**
-    * Required by  Cake.Model.Datasource destructor method.
-    * 
-    * @see Cake.Model.Datasource
-    **/
-    protected function close()
+    public function __destruct()
+    {
+       $this->closeConnection();
+       parent::__destruct();
+    }
+  
+
+    public function closeConnection()
     {
         fclose($this->socket);
         $this->connected = false;        
     }
+  
 
-    
-   /**
-    * Required by  Cake.Model.Datasource
-    *
-    * @see Cake.Model.Datasource
-    **/    
-    public function listSources() 
-    {
-        return array('redis');
-    }
-
-    
-    public function describe($model)
-    {
-        return $this->_schema['redis'];
-    }
-    
-
-    /////////////////////////////////////////////////////////////////////////////
-    // Standard cakePHP CRUD methods (they may be used as in a SQL DB,         //
-    // just make sure  that a param called 'key' is present).                  //
-    /////////////////////////////////////////////////////////////////////////////
-
-
-   /**
-    *
-    * Required by Cake.Model.Datasource.
-    * This method will be used when performing any create operation in Model.
-    *
-    * @param $model An instance of Model.
-    * @param $queryData Query params from a Model class.
-    *
-    * @throws RedisException if there is an issue with Redis protocol or server connection.
-    *
-    * @see Cake.Model.Datasource
-    *
-    **/
-    public function create(Model $model, $fields = null, $values = null)
-    {
-        return $this->update($model,$fields,$values);
-    }
-
-
-   /**
-    *
-    * Required by Cake.Model.Datasource.
-    * This method will be used when performing any find operation in Model.
-    *
-    * @param $model An instance of Model.
-    * @param $queryData Query params from a Model class.
-    *
-    * @throws RedisException if there is an issue with Redis protocol or server connection.
-    *
-    * @see Cake.Model.Datasource
-    *
-    **/
-    public function read(Model $model, $queryData = array())
-    {        
-        return $this->executeRedisCommand( $this->buildRedisCommand("get",array($this->getKeyInQueryParams($model,$queryData))) );
-    }    
-
-
-    /**
-     *
-     * Required by Cake.Model.Datasource.
-     * This method will be used when performing any update/save operation in Model.
-     *
-     * @param $model An instance of Model.
-     * @param $queryData Query params from a Model class.
-     * @return As Redis will always return "OK "since SET can't fail, we always return true.
-     *
-     * @throws RedisException if there is an issue with Redis protocol or server connection.
-     *
-     * @see Cake.Model.Datasource
-     *
-     **/
-    public function update(Model $model, $fields = array(), $values = array())
-    {
-        $data = array_combine($fields, $values);
-    
-        $key = $this->getKeyInQueryParams($model, $data);
-    
-        if (!isset($data['value']))
-            throw new RedisException("",RedisException::$MISSING_VALUE);
-
-        $this->executeRedisCommand( $this->buildRedisCommand("set",array($key,$data['value'])) );
-
-        return true;
-    }
-
-
-   /**
-    *
-    * Required by Cake.Model.Datasource.
-    * This method will be used when performing any delete operation in Model.
-    * 
-    * NOTE : Model should call directly this method avoiding al CakePHP.Model delete logic
-    * as I was unable to make it work,  there are some checks, like counts, finds etc, so
-    * to keep it simple, just override delete function from your model like this :
-    * <pre>
-    *     public function delete($key,$cascade = false)
-    *	  {
-	*        return $this->getDataSource()->delete($this,$key);
-    *	  } 
-    * </pre>
-    *
-    * @param $model An instance of Model.
-    * @param $queryData Query params from a Model class.
-    *
-    * @return Integer reply: The number of keys that were removed.
-    * 
-    * @throws RedisException if there is an issue with Redis protocol or server connection.
-    *
-    * @see Cake.Model.Datasource
-    *
-    **/
-    public function delete($model, $key = "")
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("del",array($key)) );
-    }
-
-    
-    /////////////////////
-    // Redis Commands  //
-    /////////////////////
-    
-
-   /**
-	*  Appends a value to a given key's current value.
-	*    -> redis['my_key'] => 'Hello ' after an append operation we will have :
-	*      -> append('my_key','World')
-	*    -> redis['my_key'] => 'Hello World'
-	*
-	*   @param $model CakePHP Model instance.
-	*   @param $key Database key
-	*   @param $valueToAppend string Value that will be append to given key value.
-	*   
-	*   @return Integer reply: the length of the string after the append operation.
-	*   
-	*   @see http://redis.io/commands/append
-	**/    
-    public function append($model, $key = "", $valueToAppend = "")
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("append",array($key,$valueToAppend)) );
-    }
-
-
-   /**
-    *  Request for authentication in a password protected Redis server. 
-    *
-    *   @param $model CakePHP Model instance.
-    *   @param $password Database password
-    *
-    *   @return Redis Status code reply
-    *
-    *   @see http://redis.io/commands/auth
-    **/
-    public function authenticate($model, $password)
-    {
-        // TODO Test this method.
-        return $this->executeRedisCommand( $this->buildRedisCommand("auth",array($password)) );
-    }
-
-    
-   /**
-    * Asynchronously rewrite the append-only file.
-    *
-    * @param $model CakePHP Model instance.
-    *
-    * @return Always will return OK Status reply.
-    *
-    * @see http://redis.io/commands/bgrewriteaof
-    **/
-    public function rewriteAppendOnlyFile($model)
-    {
-        // TODO Test this method.
-        return $this->executeRedisCommand( $this->buildRedisCommand("bgrewritraof",array()));
-    }
-
-
-   /**
-    * Saves the DB on disk in background.
-    *
-    * @param $model CakePHP Model instance.
-    *
-    * @return Always will return OK Status reply, as is an asynchronous process.
-    *         Use lastSaveTimeStamp in order to get when was the last time DB 
-    *         was stored in disk.
-    *
-    * @see http://redis.io/commands/bgsave
-    **/
-    public function bgsave($model)
-    {
-        return $this->executeRedisCommand( $this->buildRedisCommand("bgsave",array()));
-    }    
-
-
-   /**
-    * Return the number of keys in the currently selected database.
-    *
-    * @param $model CakePHP Model instance.
-    *
-    * @return integer value with the number of elements stored in current selected DB.
-    *
-    * @see http://redis.io/commands/dbsize
-    **/
-    public function dbSize($model)
-    {
-        return $this->executeRedisCommand( $this->buildRedisCommand("dbsize",array()));
-    }
-
-
-   /**
-    * Decrements the number stored at key by one. 
-    * 
-    * @param $model CakePHP Model instance.
-	* @param $key Database key
-	* 
-    * @return Integer reply: the value of key after the decrement
-    * 
-    * @see http://redis.io/commands/decr
-    * 
-    **/
-    public function decrement($model, $key)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-                
-        return $this->executeRedisCommand( $this->buildRedisCommand("decr",array($key)));
-    }
-    
-    
-   /**
-    * Decrements the number stored at key by $value units.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $value number of units to decrement to key's value.
-    *
-    * @return Integer reply: the value of key after the decrement
-    *
-    * @see http://redis.io/commands/decr
-    *
-    **/
-    public function decrementBy($model, $key, $value)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-    
-        if (empty($value))
-            throw new RedisException("",RedisException::$MISSING_VALUE);        
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("decrby",array($key, $value)));        
-    }    
-    
-    
-   /**
-    * Expires a db entry with the given $key in $expireInSeconds seconds.
-    * Note : Expiring in Redis means delete.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $expireInSeconds expiration timeout in seconds.
-    *
-    * @return Integer reply: 1 if the timeout was set.  0 if key does not exist or
-    *         the timeout could not be set.
-    *
-    * @see http://redis.io/commands/expire
-    *
-    **/    
-    public function expire($model, $key, $expireInSeconds)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-        
-        if (empty($expireInSeconds))
-            throw new RedisException("You did not specify an expiration timeout",RedisException::$MISSING_VALUE);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("expire",array($key, $expireInSeconds)));
-    }
-    
-    
-   /**
-    * Expires a db entry with the given $key at $unixTimeStamp time.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $unixTimeStamp A unix timestamp.
-    *
-    * @return Integer reply: 1 if the timeout was set.  0 if key does not exist or
-    *         the timeout could not be set.
-    *
-    * @see http://redis.io/commands/expireat
-    *
-    **/
-    public function expireAt($model, $key, $unixTimeStamp)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-    
-        if (empty($unixTimeStamp))
-            throw new RedisException("You did not specify an UNIX timestamp for expiration",RedisException::$MISSING_VALUE);
-    
-        return $this->executeRedisCommand( $this->buildRedisCommand("expireat",array($key, $unixTimeStamp)));
-    }    
-    
-    
-   /**
-    * Returns the substring of the string value stored at key, determined by the 
-    * offsets start and end (both are inclusive).
-    * Negative offsets can be used in order to provide an offset starting 
-    * from the end of the string. So -1 means the last character, -2 the 
-    * penultimate and so forth.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $start start offset
-    * @param $end end offset
-    *
-    * @return Key's value substring
-    *
-    * @see http://redis.io/commands/getrange
-    *
-    **/    
-    public function getRange($model, $key, $start, $end)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);        
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("getrange",array($key, intval($start), intval($end))));
-    }
-    
-    
-   /**
-    * Atomically sets key to value and returns the old value stored at key. 
-    * Returns an error when key exists but does not hold a string value.
-    *  
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $value new value to set to key.
-    *
-    * @return old value stored at $key
-    * 
-    * @see http://redis.io/commands/getset
-    * 
-    **/
-    public function getAndSet($model, $key, $value)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-
-        if (empty($value))
-            throw new RedisException("You did not specify a new value for your key.",RedisException::$MISSING_VALUE);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("getset",array($key, $value)));
-    }    
-
-
-   /**
-    * Increments the number stored at key by one. If the key does not exist, 
-    * it is set to 0 before performing the operation. An error is returned if 
-    * the key contains a value of the wrong type or contains a string that is 
-    * not representable as integer. 
-    * This operation is limited to 64 bit signed integers.
-    * 
-    * @param $model CakePHP Model instance.
-	* @param $key Database key
-	* 
-    * @return Integer reply: the value of key after the increment
-    * 
-    * @see http://redis.io/commands/incr
-    * 
-    **/
-    public function increment($model, $key)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("incr",array($key)));
-    }
-    
-    
-   /**
-    * Increments the number stored at key by increment. 
-    * If the key does not exist, it is set to 0 before performing the operation.
-    * An error is returned if the key contains a value of the wrong type or 
-    * contains a string that is not representable as integer. 
-    * This operation is limited to 64 bit signed integers.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $key Database key
-    * @param $value number of units to increment to key's value.
-    *
-    * @return Integer reply: the value of key after the increment
-    *
-    * @see http://redis.io/commands/incrby
-    *
-    **/
-    public function incrementBy($model, $key, $value)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-
-        if (empty($value))
-            throw new RedisException("",RedisException::$MISSING_VALUE);        
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("incrby",array($key, $value)));
-    }   
-
-
-   /**
-    * Returns all keys matching pattern.
-    *
-    * @param $model CakePHP Model instance.
-    * @param $keysPattern Pattern to look for.
-    *
-    * @return list of keys matching pattern.
-    *
-    * @see http://redis.io/commands/keys
-    *
-    **/    
-    public function keys($model, $keysPattern)
-    {
-        if (empty($keysPattern))
-            throw new RedisException("You did not specify a pattern to look for in redis keys.",RedisException::$MISSING_VALUE);
-
-        return $this->executeRedisCommand( $this->buildRedisCommand("keys",array($keysPattern)));
-    }
-
-
-   /**
-    * Gets a unix timestamp from the last time DB was stored in disk.
-    *
-    * @param $model CakePHP Model instance.
-    *
-    * @return Unix timestamp.
-    *
-    * @see http://redis.io/commands/lastsave
-    **/
-    public function lastSaveTimeStamp($model)
-    {
-        return $this->executeRedisCommand( $this->buildRedisCommand("lastsave",array()));
-    }
-    
-    
-   /**
-    * 
-    * Set key to hold the string value. If key already holds a value, 
-    * it is overwritten, regardless of its type.
-    * 
-    * @return Status code reply: always OK since SET can't fail.
-    * 
-    * @see http://redis.io/commands/set
-    * 
-    **/
-    public function set($model,$key, $value)
-    {
-        if (empty($key))
-            throw new RedisException("",RedisException::$MISSING_KEY);
-        
-        if (empty($value))
-            throw new RedisException("",RedisException::$MISSING_VALUE);
-        
-        return $this->executeRedisCommand( $this->buildRedisCommand("set",array($key, $value)));
-    }
-        
-    
    /**
     * Will parse parameters and generate a Redis command, ready to be sent 
     * through our socket. 
@@ -557,15 +87,15 @@ class RedisSource extends DataSource
     * Copyright (c) 2009 Justin Poliey <jdp34@njit.edu>
     * 
     **/
-    protected function buildRedisCommand($commandName, $commandArgs)
+    public function buildCommand($commandName, $commandArgs)
     {
         array_unshift($commandArgs, strtoupper($commandName));
         return sprintf('*%d%s%s%s', count($commandArgs), CRLF, implode(array_map(function($arg) {
             return sprintf('$%d%s%s', strlen($arg), CRLF, $arg);
                     }, $commandArgs), CRLF), CRLF);
     }
-    
-    
+
+
    /**
     * 
     * This method will send Redis commannds using $this->socket.
@@ -584,13 +114,13 @@ class RedisSource extends DataSource
     * Copyright (c) 2009 Justin Poliey <jdp34@njit.edu>
     * 
     **/
-    protected function executeRedisCommand($command)
+    public function executeCommand($command)
     {
         for ($written = 0; $written < strlen($command); $written += $fwrite)
         {
             $fwrite = fwrite($this->socket, substr($command, $written));
 
-            if ($fwrite === FALSE)
+            if ($fwrite === FALSE || $fwrite <= 0)
                 throw new RedisException("",RedisException::$CONNECTION_ERROR_WHILE_SENDING_DATA);
         }
 
@@ -669,35 +199,13 @@ class RedisSource extends DataSource
     }
 
 
-   /**
-    *
-    * This helper method will try to find key value inside our queryData, as key may
-    * be added in a array in diferents ways we want to look for :
-    *   $queryData['conditions']['key']
-    *   $queryData['conditions']['ModelName.key']
-    *   $queryData['key']
-    *
-    * @param $model
-    * @param $queryData
-    * 
-    * @return string with the value of the key.
-    * 
-    * @throws RedisException if key not found.
-    *  
-    **/
-    protected function getKeyInQueryParams(&$model,$queryData)
+    // Methods needed to avoid CakePHP ORM and SQL dependency.
+
+    public function query() 
     {
-        if (isset($queryData['key']))
-            return $queryData['key'];
-                
-        if (isset($queryData['conditions'][$model->name.'.key']))
-            return $queryData['conditions'][$model->name.'.key'];
-
-        if (isset($queryData['conditions']['key']))
-            return $queryData['conditions']['key'];
-
-        throw new RedisException("",RedisException::$MISSING_KEY);
+        return true;
     }
+
 }
 
 
